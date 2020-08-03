@@ -50,15 +50,16 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="AdlGraphicsInfo.cs" />
-    <Compile Include="AnimationType.cs" />
-    <Compile Include="Constants.cs" />
-    <Compile Include="JsonSerializer.cs" />
-    <Compile Include="LedSettings.cs" />
-    <Compile Include="Manufacturer.cs" />
-    <Compile Include="NdaGraphicsInfo.cs" />
+    <Compile Include="Model\AdlGraphicsInfo.cs" />
+    <Compile Include="Constants\AnimationType.cs" />
+    <Compile Include="Constants\Constants.cs" />
+    <Compile Include="Util\JsonSerializer.cs" />
+    <Compile Include="Model\LedSettings.cs" />
+    <Compile Include="Constants\Manufacturer.cs" />
+    <Compile Include="Model\NdaGraphicsInfo.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Util\TemperatureColorUtil.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
