@@ -7,6 +7,7 @@
         Flashing = 3,
         DoubleFlashing = 4,
         Off = 5,
-        TemperatureBased = 6
+        TemperatureBased = 6,
+        SolidRgbCycle = 7
     }
 }

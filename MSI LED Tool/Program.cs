@@ -38,6 +38,7 @@ namespace MSI_LED_Tool
         public static extern bool ADL_SetIlluminationParm_RGB(int iAdapterIndex, int cmd, int led1, int led2, int ontime, int offtime, int time, int darktime, int bright, int r, int g, int b, bool one = false);
 
         private const int NoAnimationDelay = 60000;
+        private const int ColorCycleDelay = 2000;
 
         private static Thread updateThreadFront;
         private static Thread updateThreadBack;
@@ -52,6 +53,19 @@ namespace MSI_LED_Tool
         private static Mutex mutex;
         private static NdaGraphicsInfo ndaGraphicsInfo;
         private static AdlGraphicsInfo adlGraphicsInfo;
+
+        private static Queue<Color> colorQueue = new Queue<Color>(new Color[]
+        {
+            Color.FromArgb(255, 0, 0),
+            Color.FromArgb(255, 5, 0),
+            Color.FromArgb(255, 255, 0),
+            Color.FromArgb(0, 255, 0),
+            Color.FromArgb(0, 127, 255),
+            Color.FromArgb(0, 0, 255),
+            Color.FromArgb(5, 0, 255),
+            Color.FromArgb(255, 0, 255),
+            Color.FromArgb(255, 255, 255),
+        });
 
         static void Main(string[] args)
         {
@@ -230,6 +244,7 @@ namespace MSI_LED_Tool
                         Thread.Sleep(NoAnimationDelay);
                         break;
                     case AnimationType.Breathing:
+                    case AnimationType.SolidRgbCycle:
                         UpdateLeds(27, 4, 7);
                         break;
                     case AnimationType.Flashing:
@@ -324,6 +339,11 @@ namespace MSI_LED_Tool
                                 break;
                         }
                         break;
+                    case AnimationType.SolidRgbCycle:
+                        UpdateLeds(21, 1, 4);
+                        CycleNextColor();
+                        Thread.Sleep(ColorCycleDelay);
+                        break;
                 }
             }
         }
@@ -339,6 +359,7 @@ namespace MSI_LED_Tool
                         Thread.Sleep(NoAnimationDelay);
                         break;
                     case AnimationType.Breathing:
+                    case AnimationType.SolidRgbCycle:
                         UpdateLeds(27, 2, 7);
                         break;
                     case AnimationType.Flashing:
@@ -410,6 +431,13 @@ namespace MSI_LED_Tool
             }
 
             Thread.CurrentThread.Join(2000);
+        }
+
+        private static void CycleNextColor()
+        {
+            var nextColor = colorQueue.Dequeue();
+            ledSettings.Color = nextColor;
+            colorQueue.Enqueue(nextColor);
         }
     }
 }
