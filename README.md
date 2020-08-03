@@ -16,6 +16,7 @@ https://www.youtube.com/watch?v=-cuow0x4VIk
 	* 4 = Double Flashing
 	* 5 = Disable LEDs
 	* 6 = Temperature Based
+	* 7 = Solid rainbow cycling with breathing for non-RGB lights
 * Run the "MSI LED Tool" executable and if you like what you see, run the "regedit.reg" file to register the tool to startup upon Windows boot, after which it will automatically apply your configured settings.
 
 # Releases
