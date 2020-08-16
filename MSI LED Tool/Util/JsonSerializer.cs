@@ -15,7 +15,7 @@ namespace MSI_LED_Tool
                 return Encoding.Default.GetString(stream.ToArray());
             }
         }
-        
+
         public static TType DeSerialize(string json)
         {
             using (var stream = new MemoryStream(Encoding.Default.GetBytes(json)))

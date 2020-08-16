@@ -54,6 +54,17 @@
     <Compile Include="Adapters\ADLAdapter.cs" />
     <Compile Include="Adapters\IAdapter.cs" />
     <Compile Include="Adapters\NDAAdapter.cs" />
+    <Compile Include="Animations\AnimationBase.cs" />
+    <Compile Include="Animations\AnimationFactory.cs" />
+    <Compile Include="Animations\BreathingAnimation.cs" />
+    <Compile Include="Animations\BreathingRGBCycleAnimation.cs" />
+    <Compile Include="Animations\DoubleFlashingAnimation.cs" />
+    <Compile Include="Animations\FlashingAnimation.cs" />
+    <Compile Include="Animations\IAnimation.cs" />
+    <Compile Include="Animations\NoAnimation.cs" />
+    <Compile Include="Animations\OffAnimation.cs" />
+    <Compile Include="Animations\TemperatureBasedAnimation.cs" />
+    <Compile Include="Constants\LedId.cs" />
     <Compile Include="Model\AdlGraphicsInfo.cs" />
     <Compile Include="Constants\AnimationType.cs" />
     <Compile Include="Constants\Constants.cs" />

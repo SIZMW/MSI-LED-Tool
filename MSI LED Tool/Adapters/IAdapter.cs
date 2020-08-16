@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace MSI_LED_Tool
+﻿namespace MSI_LED_Tool
 {
     public interface IAdapter
     {

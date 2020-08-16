@@ -54,7 +54,8 @@ namespace MSI_LED_Tool
         }
 
         [DataMember]
-        public int TemperatureLowerLimit {
+        public int TemperatureLowerLimit
+        {
             get
             {
                 return temperatureLowerLimit;
