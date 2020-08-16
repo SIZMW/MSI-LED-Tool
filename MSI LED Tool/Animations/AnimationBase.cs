@@ -18,6 +18,10 @@ namespace MSI_LED_Tool
         protected int darkTime = 0;
         protected bool callOnce = true;
 
+        /// <summary>
+        /// Constructs an animation instance.
+        /// </summary>
+        /// <param name="updateLedsAction">LED update function that takes in parameters on color and time settings.</param>
         public AnimationBase(Action<LedSettings, int, int, int, int, int, int, bool> updateLedsAction)
         {
             this.updateLedsAction = updateLedsAction;

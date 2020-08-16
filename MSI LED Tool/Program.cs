@@ -14,22 +14,26 @@ namespace MSI_LED_Tool
         private static Thread updateThreadSide;
 
         private static bool vgaMutex;
-        private static IAnimation animation;
-        private static LedSettings ledSettings;
 
+        private static LedSettings ledSettings;
         private static IAdapter graphicsAdapter;
+        private static IAnimation animation;
 
         public static void Main(string[] args)
         {
+            // Load user settings
             string settingsFile = $"{AppDomain.CurrentDomain.BaseDirectory}\\{SettingsFileName}";
             ledSettings = InitializeFromSettings(settingsFile);
 
+            // Build graphics card adapter based on cards detected
             var didCreateGraphicsAdapter = ConstructGraphicsAdapter(ledSettings);
             if (didCreateGraphicsAdapter && graphicsAdapter.GetAdapterIndexCount() > 0)
             {
+                // Build animation type and initialize animation logic
                 AnimationFactory factory = new AnimationFactory();
                 animation = factory.BuildAnimator(ledSettings.AnimationType, UpdateLeds);
 
+                // Start threads per LED set
                 updateThreadFront = new Thread(UpdateLedsFront);
                 updateThreadSide = new Thread(UpdateLedsSide);
                 updateThreadBack = new Thread(UpdateLedsBack);
@@ -70,7 +74,7 @@ namespace MSI_LED_Tool
                 }
             }
 
-            // Try ADL
+            // Try ADL if NDA didn't work
             var adlAdapter = new ADLAdapter();
             if (ndaCount == 0 && adlAdapter.Initialize())
             {
@@ -82,7 +86,7 @@ namespace MSI_LED_Tool
                 }
             }
 
-            // Not found
+            // Nothing found
             return false;
         }
 
@@ -90,7 +94,7 @@ namespace MSI_LED_Tool
         {
             LedSettings settings;
 
-            // File
+            // From file
             if (File.Exists(settingsFile))
             {
                 using (var sr = new StreamReader(settingsFile))
@@ -98,7 +102,7 @@ namespace MSI_LED_Tool
                     settings = JsonSerializer<LedSettings>.DeSerialize(sr.ReadToEnd()) ?? new LedSettings();
                 }
             }
-            else // Default
+            else // Save and use default values
             {
                 settings = new LedSettings();
 
@@ -112,6 +116,8 @@ namespace MSI_LED_Tool
         }
 
         #endregion
+
+        #region Update LED functions
 
         private static void UpdateLedsFront()
         {
@@ -138,6 +144,17 @@ namespace MSI_LED_Tool
             }
         }
 
+        /// <summary>
+        /// Generic LED update function that also manages threading.
+        /// </summary>
+        /// <param name="ledSettings">The input settings for colors.</param>
+        /// <param name="cmd">The lighting command.</param>
+        /// <param name="ledId">The ID of the LED to be set.</param>
+        /// <param name="time">The time of the illumination command.</param>
+        /// <param name="ontime">The time for the LED to remain on.</param>
+        /// <param name="offtime">The time for the LED to remain off.</param>
+        /// <param name="darkTime">The time for the LED to remain darkened.</param>
+        /// <param name="callOnce">If the LED command should be called only once.</param>
         private static void UpdateLeds(LedSettings ledSettings, int cmd, int ledId, int time, int ontime = 0, int offtime = 0, int darkTime = 0, bool callOnce = true)
         {
             for (int i = 0; i < graphicsAdapter.GetAdapterIndexCount(); i++)
@@ -157,5 +174,7 @@ namespace MSI_LED_Tool
 
             Thread.CurrentThread.Join(2000);
         }
+
+        #endregion
     }
 }

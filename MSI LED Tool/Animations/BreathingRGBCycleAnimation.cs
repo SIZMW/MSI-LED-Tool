@@ -7,6 +7,9 @@ namespace MSI_LED_Tool
 {
     public class BreathingRGBCycleAnimation : BreathingAnimation
     {
+        /// <summary>
+        /// Predefined colors based on visual accuracy to cycle on loop.
+        /// </summary>
         private readonly Queue<Color> colorQueue = new Queue<Color>(new Color[]
 {
             Color.FromArgb(255, 0, 0),
@@ -39,7 +42,10 @@ namespace MSI_LED_Tool
         public override void AnimateSide(IAdapter adapter, LedSettings ledSettings)
         {
             Thread.Sleep(ColorCycleDelay);
+
+            // Cycle only on one of the three animate functions to maintain consistency
             ledSettings.Color = CycleNextColor();
+
             base.AnimateSide(adapter, ledSettings);
         }
 
