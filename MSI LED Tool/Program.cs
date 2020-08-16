@@ -114,7 +114,7 @@ namespace MSI_LED_Tool
                 updateThreadBack = new Thread(UpdateLedsBack);
                 updateThreadFront.Start();
                 updateThreadSide.Start();
-                updateThreadBack.Start();
+                // updateThreadBack.Start();
             }
             else
             {
@@ -245,6 +245,7 @@ namespace MSI_LED_Tool
                         break;
                     case AnimationType.Breathing:
                     case AnimationType.SolidRgbCycle:
+                        Thread.Sleep(3000);
                         UpdateLeds(27, 4, 7);
                         break;
                     case AnimationType.Flashing:
@@ -291,8 +292,10 @@ namespace MSI_LED_Tool
 
         private static void UpdateLedsSide()
         {
-            while (true)
+            int i = 0;
+            while (i < 100)
             {
+                i++;
                 switch (ledSettings.AnimationType)
                 {
                     case AnimationType.NoAnimation:
@@ -300,6 +303,8 @@ namespace MSI_LED_Tool
                         Thread.Sleep(NoAnimationDelay);
                         break;
                     case AnimationType.Breathing:
+                        Thread.Sleep(3000);
+                        CycleNextColor();
                         UpdateLeds(27, 1, 7);
                         break;
                     case AnimationType.Flashing:
