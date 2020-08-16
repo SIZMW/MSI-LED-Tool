@@ -3,58 +3,31 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
 
 namespace MSI_LED_Tool
 {
-    class Program
+    public class Program
     {
         private const string SettingsFileName = "Settings.json";
 
-        [DllImport("Lib\\NDA.dll", CharSet = CharSet.Unicode)]
-        public static extern bool NDA_Initialize();
-
-        [DllImport("Lib\\ADL.dll", CharSet = CharSet.Unicode)]
-        public static extern bool ADL_Initialize();
-
-        [DllImport("Lib\\NDA.dll", CharSet = CharSet.Unicode)]
-        private static extern bool NDA_GetGPUCounts(out long gpuCounts);
-
-        [DllImport("Lib\\NDA.dll", CharSet = CharSet.Unicode)]
-        private static extern bool NDA_GetGraphicsInfo(int iAdapterIndex, out NdaGraphicsInfo graphicsInfo);
-
-        [DllImport("Lib\\NDA.dll", CharSet = CharSet.Unicode)]
-        private static extern bool NDA_SetIlluminationParmColor_RGB(int iAdapterIndex, int cmd, int led1, int led2, int ontime, int offtime, int time, int darktime, int bright, int r, int g, int b, bool one = false);
-
-        [DllImport("Lib\\ADL.dll", CharSet = CharSet.Unicode)]
-        public static extern bool ADL_GetGPUCounts(out int gpuCounts);
-
-        [DllImport("Lib\\ADL.dll", CharSet = CharSet.Unicode)]
-        public static extern bool ADL_GetGraphicsInfo(int iAdapterIndex, out AdlGraphicsInfo graphicsInfo);
-
-        [DllImport("Lib\\ADL.dll", CharSet = CharSet.Unicode)]
-        public static extern bool ADL_SetIlluminationParm_RGB(int iAdapterIndex, int cmd, int led1, int led2, int ontime, int offtime, int time, int darktime, int bright, int r, int g, int b, bool one = false);
-
         private const int NoAnimationDelay = 60000;
-        private const int ColorCycleDelay = 2000;
+        private const int ColorCycleDelay = 3000;
 
         private static Thread updateThreadFront;
         private static Thread updateThreadBack;
         private static Thread updateThreadSide;
 
-        private static List<int> adapterIndexes;
-
+        private static Mutex mutex;
         private static bool vgaMutex;
-        private static Manufacturer manufacturer;
         private static LedSettings ledSettings;
 
-        private static Mutex mutex;
-        private static NdaGraphicsInfo ndaGraphicsInfo;
-        private static AdlGraphicsInfo adlGraphicsInfo;
+        private static IAdapter graphicsAdapter;
 
-        private static Queue<Color> colorQueue = new Queue<Color>(new Color[]
+        private static readonly Queue<Color> colorQueue = new Queue<Color>(new Color[]
         {
             Color.FromArgb(255, 0, 0),
             Color.FromArgb(255, 5, 0),
@@ -67,54 +40,23 @@ namespace MSI_LED_Tool
             Color.FromArgb(255, 255, 255),
         });
 
-        static void Main(string[] args)
+        public static void Main(string[] args)
         {
             mutex = new Mutex();
 
             string settingsFile = $"{AppDomain.CurrentDomain.BaseDirectory}\\{SettingsFileName}";
-            InitializeFromSettings(settingsFile);
+            ledSettings = InitializeFromSettings(settingsFile);
 
-            adapterIndexes = new List<int>();
-
-            long gpuCountNda = 0;
-
-            if (NDA_Initialize())
-            {
-                bool canGetGpuCount = NDA_GetGPUCounts(out gpuCountNda);
-                if (canGetGpuCount == false)
-                {
-                    return;
-                }
-
-                if (gpuCountNda > 0 && InitializeNvidiaAdapters(gpuCountNda))
-                {
-                    manufacturer = Manufacturer.Nvidia;
-                }
-            }
-
-            if (gpuCountNda == 0 && ADL_Initialize())
-            {
-                int gpuCountAdl;
-                bool canGetGpuCount = ADL_GetGPUCounts(out gpuCountAdl);
-                if (canGetGpuCount == false)
-                {
-                    return;
-                }
-
-                if (gpuCountAdl > 0 && InitializeAmdAdapters(gpuCountAdl))
-                {
-                    manufacturer = Manufacturer.AMD;
-                }
-            }
-
-            if (adapterIndexes.Count > 0)
+            var didCreateGraphicsAdapter = ConstructGraphicsAdapter(ledSettings);
+            if (didCreateGraphicsAdapter && graphicsAdapter.GetAdapterIndexCount() > 0)
             {
                 updateThreadFront = new Thread(UpdateLedsFront);
                 updateThreadSide = new Thread(UpdateLedsSide);
                 updateThreadBack = new Thread(UpdateLedsBack);
+
                 updateThreadFront.Start();
                 updateThreadSide.Start();
-                // updateThreadBack.Start();
+                updateThreadBack.Start();
             }
             else
             {
@@ -129,106 +71,64 @@ namespace MSI_LED_Tool
             }
         }
 
-        private static void InitializeFromSettings(string settingsFile)
+        #region Initialization
+
+        private static bool ConstructGraphicsAdapter(LedSettings settings)
         {
+            // Try NDA
+            var ndaAdapter = new NDAAdapter();
+            long ndaCount = 0;
+            
+            if (ndaAdapter.Initialize())
+            {
+                ndaCount = ndaAdapter.GetGpuCounts();
+
+                if (ndaCount > 0 && ndaAdapter.InitializeAdapters(ndaCount, settings))
+                {
+                    graphicsAdapter = ndaAdapter;
+                    return true;
+                }
+            }
+
+            // Try ADL
+            var adlAdapter = new ADLAdapter();
+            if (ndaCount == 0 && adlAdapter.Initialize())
+            {
+                long adlCount = adlAdapter.GetGpuCounts();
+                if (adlCount > 0 && adlAdapter.InitializeAdapters(adlCount, settings))
+                {
+                    graphicsAdapter = adlAdapter;
+                    return true;
+                }
+            }
+
+            // Not found
+            return false;
+        }
+
+        private static LedSettings InitializeFromSettings(string settingsFile)
+        {
+            LedSettings settings;
+
+            // File
             if (File.Exists(settingsFile))
             {
                 using (var sr = new StreamReader(settingsFile))
                 {
-                    ledSettings = JsonSerializer<LedSettings>.DeSerialize(sr.ReadToEnd()) ?? new LedSettings();
+                    settings = JsonSerializer<LedSettings>.DeSerialize(sr.ReadToEnd()) ?? new LedSettings();
                 }
             }
-            else
+            else // Default
             {
-                ledSettings = new LedSettings();
+                settings = new LedSettings();
 
                 using (var sw = new StreamWriter(settingsFile, false))
                 {
                     sw.WriteLine(JsonSerializer<LedSettings>.Serialize(ledSettings));
                 }
             }
-        }
 
-        #region Adapter Initializations
-
-        private static bool InitializeNvidiaAdapters(long gpuCount)
-        {
-            for (int i = 0; i < gpuCount; i++)
-            {
-                NdaGraphicsInfo graphicsInfo; 
-                if (NDA_GetGraphicsInfo(i, out graphicsInfo) == false)
-                {
-                    return false;
-                }
-
-                string vendorCode = graphicsInfo.Card_pDeviceId.Substring(4, 4).ToUpper();
-                string deviceCode = graphicsInfo.Card_pDeviceId.Substring(0, 4).ToUpper();
-                string subVendorCode = graphicsInfo.Card_pSubSystemId.Substring(4, 4).ToUpper();
-
-                if (ledSettings.OverwriteSecurityChecks)
-                {
-                    if (vendorCode.Equals(Constants.VendorCodeNvidia, StringComparison.OrdinalIgnoreCase))
-                    {
-                        adapterIndexes.Add(i);
-                    }
-                }
-                else if (vendorCode.Equals(Constants.VendorCodeNvidia, StringComparison.OrdinalIgnoreCase)
-                    && subVendorCode.Equals(Constants.SubVendorCodeMsi, StringComparison.OrdinalIgnoreCase)
-                    && Constants.SupportedDeviceCodes.Any(dc => deviceCode.Equals(dc, StringComparison.OrdinalIgnoreCase)))
-                {
-                    adapterIndexes.Add(i);
-                }
-            }
-
-            return true;
-        }
-
-        private static bool InitializeAmdAdapters(int gpuCount)
-        {
-            for (int i = 0; i < gpuCount; i++)
-            {
-                AdlGraphicsInfo graphicsInfo;
-                if (ADL_GetGraphicsInfo(i, out graphicsInfo) == false)
-                {
-                    return false;
-                }
-                
-                // PCI\VEN_1002&DEV_67DF&SUBSYS_34111462&REV_CF\4&25438C51&0&0008
-                var pnpSegments = graphicsInfo.Card_PNP.Split('\\');
-                
-                if (pnpSegments.Length < 2)
-                {
-                    continue;
-                }
-
-                // VEN_1002&DEV_67DF&SUBSYS_34111462&REV_CF
-                var codeSegments = pnpSegments[1].Split('&');
-
-                if (codeSegments.Length < 3)
-                {
-                    continue;
-                }
-
-                string vendorCode = codeSegments[0].Substring(4, 4).ToUpper();
-                string deviceCode = codeSegments[1].Substring(4, 4).ToUpper();
-                string subVendorCode = codeSegments[2].Substring(11, 4).ToUpper();
-
-                if (ledSettings.OverwriteSecurityChecks)
-                {
-                    if (vendorCode.Equals(Constants.VendorCodeAmd, StringComparison.OrdinalIgnoreCase))
-                    {
-                        adapterIndexes.Add(i);
-                    }
-                }
-                else if (vendorCode.Equals(Constants.VendorCodeAmd, StringComparison.OrdinalIgnoreCase)
-                    && subVendorCode.Equals(Constants.SubVendorCodeMsi, StringComparison.OrdinalIgnoreCase)
-                    && Constants.SupportedDeviceCodes.Any(dc => deviceCode.Equals(dc, StringComparison.OrdinalIgnoreCase)))
-                {
-                    adapterIndexes.Add(i);
-                }
-            }
-
-            return true;
+            return settings;
         }
 
         #endregion
@@ -239,13 +139,15 @@ namespace MSI_LED_Tool
             {
                 switch (ledSettings.AnimationType)
                 {
+                    case AnimationType.Off:
+                        UpdateLeds(24, 4, 4);
+                        Thread.Sleep(NoAnimationDelay);
+                        break;
                     case AnimationType.NoAnimation:
                         UpdateLeds(21, 4, 4);
                         Thread.Sleep(NoAnimationDelay);
                         break;
                     case AnimationType.Breathing:
-                    case AnimationType.SolidRgbCycle:
-                        Thread.Sleep(3000);
                         UpdateLeds(27, 4, 7);
                         break;
                     case AnimationType.Flashing:
@@ -254,36 +156,20 @@ namespace MSI_LED_Tool
                     case AnimationType.DoubleFlashing:
                         UpdateLeds(30, 4, 0, 10, 10, 91);
                         break;
-                    case AnimationType.Off:
-                        UpdateLeds(24, 4, 4);
-                        Thread.Sleep(NoAnimationDelay);
-                        break;
                     case AnimationType.TemperatureBased:
-                        switch (manufacturer)
+                        mutex.WaitOne();
+                        if (graphicsAdapter.GetGraphicsInformation(0, out GenericGraphicsInfo info))
                         {
-                            case Manufacturer.Nvidia:
-                                mutex.WaitOne();
-                                if (NDA_GetGraphicsInfo(0, out ndaGraphicsInfo))
-                                {
-                                    int temperatureDelta = TemperatureColorUtil.CalculateTemperatureDeltaHunderdBased(ledSettings.TemperatureLowerLimit,
-                                        ledSettings.TemperatureUpperLimit, ndaGraphicsInfo.GPU_Temperature_Current);
-                                    ledSettings.Color = TemperatureColorUtil.GetColorForDeltaTemperature(temperatureDelta);
-                                    UpdateLeds(21, 4, 4);
-                                }
-                                mutex.ReleaseMutex();
-                                break;
-                            case Manufacturer.AMD:
-                                mutex.WaitOne();
-                                if (ADL_GetGraphicsInfo(0, out adlGraphicsInfo))
-                                {
-                                    int temperatureDelta = TemperatureColorUtil.CalculateTemperatureDeltaHunderdBased(ledSettings.TemperatureLowerLimit,
-                                        ledSettings.TemperatureUpperLimit, adlGraphicsInfo.GPU_Temperature_Current);
-                                    ledSettings.Color = TemperatureColorUtil.GetColorForDeltaTemperature(temperatureDelta);
-                                    UpdateLeds(21, 4, 4);
-                                }
-                                mutex.ReleaseMutex();
-                                break;
+                            int temperatureDelta = TemperatureColorUtil.CalculateTemperatureDeltaHunderdBased(ledSettings.TemperatureLowerLimit,
+                                ledSettings.TemperatureUpperLimit, info.GpuCurrentTemperature);
+                            ledSettings.Color = TemperatureColorUtil.GetColorForDeltaTemperature(temperatureDelta);
+                            UpdateLeds(21, 4, 4);
                         }
+                        mutex.ReleaseMutex();
+                        break;
+                    case AnimationType.BreathingRgbCycle:
+                        Thread.Sleep(ColorCycleDelay);
+                        UpdateLeds(27, 4, 7);
                         break;
                 }
             }
@@ -292,19 +178,19 @@ namespace MSI_LED_Tool
 
         private static void UpdateLedsSide()
         {
-            int i = 0;
-            while (i < 100)
+            while (true)
             {
-                i++;
                 switch (ledSettings.AnimationType)
                 {
+                    case AnimationType.Off:
+                        UpdateLeds(24, 1, 4);
+                        Thread.Sleep(NoAnimationDelay);
+                        break;
                     case AnimationType.NoAnimation:
                         UpdateLeds(21, 1, 4);
                         Thread.Sleep(NoAnimationDelay);
                         break;
                     case AnimationType.Breathing:
-                        Thread.Sleep(3000);
-                        CycleNextColor();
                         UpdateLeds(27, 1, 7);
                         break;
                     case AnimationType.Flashing:
@@ -313,41 +199,21 @@ namespace MSI_LED_Tool
                     case AnimationType.DoubleFlashing:
                         UpdateLeds(30, 1, 0, 10, 10, 91);
                         break;
-                    case AnimationType.Off:
-                        UpdateLeds(24, 1, 4);
-                        Thread.Sleep(NoAnimationDelay);
-                        break;
                     case AnimationType.TemperatureBased:
-                        switch (manufacturer)
+                        mutex.WaitOne();
+                        if (graphicsAdapter.GetGraphicsInformation(0, out GenericGraphicsInfo info))
                         {
-                            case Manufacturer.Nvidia:
-                                mutex.WaitOne();
-                                if (NDA_GetGraphicsInfo(0, out ndaGraphicsInfo))
-                                {
-                                    int temperatureDelta = TemperatureColorUtil.CalculateTemperatureDeltaHunderdBased(ledSettings.TemperatureLowerLimit,
-                                        ledSettings.TemperatureUpperLimit, ndaGraphicsInfo.GPU_Temperature_Current);
-                                    ledSettings.Color = TemperatureColorUtil.GetColorForDeltaTemperature(temperatureDelta);
-                                    UpdateLeds(21, 1, 4);
-                                }
-                                mutex.ReleaseMutex();
-                                break;
-                            case Manufacturer.AMD:
-                                mutex.WaitOne();
-                                if (ADL_GetGraphicsInfo(0, out adlGraphicsInfo))
-                                {
-                                    int temperatureDelta = TemperatureColorUtil.CalculateTemperatureDeltaHunderdBased(ledSettings.TemperatureLowerLimit,
-                                        ledSettings.TemperatureUpperLimit, adlGraphicsInfo.GPU_Temperature_Current);
-                                    ledSettings.Color = TemperatureColorUtil.GetColorForDeltaTemperature(temperatureDelta);
-                                    UpdateLeds(21, 1, 4);
-                                }
-                                mutex.ReleaseMutex();
-                                break;
+                            int temperatureDelta = TemperatureColorUtil.CalculateTemperatureDeltaHunderdBased(ledSettings.TemperatureLowerLimit,
+                                ledSettings.TemperatureUpperLimit, info.GpuCurrentTemperature);
+                            ledSettings.Color = TemperatureColorUtil.GetColorForDeltaTemperature(temperatureDelta);
+                            UpdateLeds(21, 1, 4);
                         }
+                        mutex.ReleaseMutex();
                         break;
-                    case AnimationType.SolidRgbCycle:
-                        UpdateLeds(21, 1, 4);
-                        CycleNextColor();
+                    case AnimationType.BreathingRgbCycle:
                         Thread.Sleep(ColorCycleDelay);
+                        CycleNextColor(); // Cycles colors for everything
+                        UpdateLeds(27, 1, 7);
                         break;
                 }
             }
@@ -359,12 +225,15 @@ namespace MSI_LED_Tool
             {
                 switch (ledSettings.AnimationType)
                 {
+                    case AnimationType.Off:
+                        UpdateLeds(24, 2, 4);
+                        Thread.Sleep(NoAnimationDelay);
+                        break;
                     case AnimationType.NoAnimation:
                         UpdateLeds(21, 2, 4);
                         Thread.Sleep(NoAnimationDelay);
                         break;
                     case AnimationType.Breathing:
-                    case AnimationType.SolidRgbCycle:
                         UpdateLeds(27, 2, 7);
                         break;
                     case AnimationType.Flashing:
@@ -373,36 +242,20 @@ namespace MSI_LED_Tool
                     case AnimationType.DoubleFlashing:
                         UpdateLeds(30, 2, 0, 10, 10, 91);
                         break;
-                    case AnimationType.Off:
-                        UpdateLeds(24, 2, 4);
-                        Thread.Sleep(NoAnimationDelay);
-                        break;
                     case AnimationType.TemperatureBased:
-                        switch (manufacturer)
+                        mutex.WaitOne();
+                        if (graphicsAdapter.GetGraphicsInformation(0, out GenericGraphicsInfo info))
                         {
-                            case Manufacturer.Nvidia:
-                                mutex.WaitOne();
-                                if (NDA_GetGraphicsInfo(0, out ndaGraphicsInfo))
-                                {
-                                    int temperatureDelta = TemperatureColorUtil.CalculateTemperatureDeltaHunderdBased(ledSettings.TemperatureLowerLimit,
-                                        ledSettings.TemperatureUpperLimit, ndaGraphicsInfo.GPU_Temperature_Current);
-                                    ledSettings.Color = TemperatureColorUtil.GetColorForDeltaTemperature(temperatureDelta);
-                                    UpdateLeds(21, 2, 4);
-                                }
-                                mutex.ReleaseMutex();
-                                break;
-                            case Manufacturer.AMD:
-                                mutex.WaitOne();
-                                if (ADL_GetGraphicsInfo(0, out adlGraphicsInfo))
-                                {
-                                    int temperatureDelta = TemperatureColorUtil.CalculateTemperatureDeltaHunderdBased(ledSettings.TemperatureLowerLimit,
-                                        ledSettings.TemperatureUpperLimit, adlGraphicsInfo.GPU_Temperature_Current);
-                                    ledSettings.Color = TemperatureColorUtil.GetColorForDeltaTemperature(temperatureDelta);
-                                    UpdateLeds(21, 2, 4);
-                                }
-                                mutex.ReleaseMutex();
-                                break;
+                            int temperatureDelta = TemperatureColorUtil.CalculateTemperatureDeltaHunderdBased(ledSettings.TemperatureLowerLimit,
+                                ledSettings.TemperatureUpperLimit, info.GpuCurrentTemperature);
+                            ledSettings.Color = TemperatureColorUtil.GetColorForDeltaTemperature(temperatureDelta);
+                            UpdateLeds(21, 2, 4);
                         }
+                        mutex.ReleaseMutex();
+                        break;
+                    case AnimationType.BreathingRgbCycle:
+                        Thread.Sleep(ColorCycleDelay);
+                        UpdateLeds(27, 2, 7);
                         break;
                 }
             }
@@ -410,7 +263,7 @@ namespace MSI_LED_Tool
 
         private static void UpdateLeds(int cmd, int ledId, int time, int ontime = 0, int offtime = 0, int darkTime = 0)
         {
-            for (int i = 0; i < adapterIndexes.Count; i++)
+            for (int i = 0; i < graphicsAdapter.GetAdapterIndexCount(); i++)
             {
                 Thread.CurrentThread.Join(10);
                 for (int index = 0; vgaMutex && index < 100; ++index)
@@ -422,15 +275,7 @@ namespace MSI_LED_Tool
 
                 bool oneCall = ledSettings.AnimationType != AnimationType.NoAnimation;
 
-                if (manufacturer == Manufacturer.Nvidia)
-                {
-                    NDA_SetIlluminationParmColor_RGB(i, cmd, ledId, 0, ontime, offtime, time, darkTime, 0, ledSettings.R, ledSettings.G, ledSettings.B, oneCall);
-                }
-
-                if (manufacturer == Manufacturer.AMD)
-                {
-                    ADL_SetIlluminationParm_RGB(i, cmd, ledId, 0, ontime, offtime, time, darkTime, 0, ledSettings.R, ledSettings.G, ledSettings.B, oneCall);
-                }
+                graphicsAdapter.SetIlluminationRGBColor(ledSettings, i, cmd, ledId, time, ontime, offtime, darkTime, oneCall);
 
                 vgaMutex = false;
             }

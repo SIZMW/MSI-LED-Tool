@@ -2,12 +2,12 @@
 {
     public enum AnimationType
     {
-        NoAnimation = 1,
-        Breathing = 2,
-        Flashing = 3,
-        DoubleFlashing = 4,
-        Off = 5,
+        Off = 1,
+        NoAnimation = 2,
+        Breathing = 3,
+        Flashing = 4,
+        DoubleFlashing = 5,
         TemperatureBased = 6,
-        SolidRgbCycle = 7
+        BreathingRgbCycle = 7
     }
 }

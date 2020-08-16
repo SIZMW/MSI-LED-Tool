@@ -50,9 +50,14 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Adapters\AdapterBase.cs" />
+    <Compile Include="Adapters\ADLAdapter.cs" />
+    <Compile Include="Adapters\IAdapter.cs" />
+    <Compile Include="Adapters\NDAAdapter.cs" />
     <Compile Include="Model\AdlGraphicsInfo.cs" />
     <Compile Include="Constants\AnimationType.cs" />
     <Compile Include="Constants\Constants.cs" />
+    <Compile Include="Model\GenericGraphicsInfo.cs" />
     <Compile Include="Util\JsonSerializer.cs" />
     <Compile Include="Model\LedSettings.cs" />
     <Compile Include="Constants\Manufacturer.cs" />
@@ -64,6 +69,7 @@
   <ItemGroup>
     <None Include="App.config" />
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
