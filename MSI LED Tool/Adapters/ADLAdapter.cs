@@ -19,7 +19,7 @@ namespace MSI_LED_Tool
         [DllImport("Lib\\ADL.dll", CharSet = CharSet.Unicode)]
         public static extern bool ADL_SetIlluminationParm_RGB(int iAdapterIndex, int cmd, int led1, int led2, int ontime, int offtime, int time, int darktime, int bright, int r, int g, int b, bool one = false);
 
-        public ADLAdapter()
+        public ADLAdapter() : base()
         {
             Manufacturer = Manufacturer.AMD;
             AdapterIndices = new List<int>();
@@ -43,7 +43,8 @@ namespace MSI_LED_Tool
 
             if (gotGraphicsInfo)
             {
-                info = new GenericGraphicsInfo(adlInfo);
+                graphicsInfo.CopyFrom(adlInfo);
+                info = graphicsInfo;
             }
             else
             {

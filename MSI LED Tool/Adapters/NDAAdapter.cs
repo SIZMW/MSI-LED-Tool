@@ -19,7 +19,7 @@ namespace MSI_LED_Tool
         [DllImport("Lib\\NDA.dll", CharSet = CharSet.Unicode)]
         public static extern bool NDA_SetIlluminationParmColor_RGB(int iAdapterIndex, int cmd, int led1, int led2, int ontime, int offtime, int time, int darktime, int bright, int r, int g, int b, bool one = false);
 
-        public NDAAdapter()
+        public NDAAdapter() : base()
         {
             Manufacturer = Manufacturer.Nvidia;
             AdapterIndices = new List<int>();
@@ -43,7 +43,8 @@ namespace MSI_LED_Tool
 
             if (gotGraphicsInfo)
             {
-                info = new GenericGraphicsInfo(ndaInfo);
+                graphicsInfo.CopyFrom(ndaInfo);
+                info = graphicsInfo;
             }
             else
             {

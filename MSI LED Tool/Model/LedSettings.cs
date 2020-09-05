@@ -89,6 +89,18 @@ namespace MSI_LED_Tool
             }
         }
 
+        public static LedSettings CopyFrom(LedSettings ledSettings)
+        {
+            return new LedSettings()
+            {
+                AnimationType = ledSettings.AnimationType,
+                Color = ledSettings.Color,
+                OverwriteSecurityChecks = ledSettings.OverwriteSecurityChecks,
+                TemperatureLowerLimit = ledSettings.TemperatureLowerLimit,
+                TemperatureUpperLimit = ledSettings.TemperatureUpperLimit
+            };
+        }
+
         /// <summary>
         /// Cap the temperature value within acceptable bounds.
         /// </summary>

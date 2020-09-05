@@ -16,6 +16,10 @@ namespace MSI_LED_Tool
         private static bool vgaMutex;
 
         private static LedSettings ledSettings;
+        private static LedSettings ledSettingsBack;
+        private static LedSettings ledSettingsFront;
+        private static LedSettings ledSettingsSide;
+
         private static IAdapter graphicsAdapter;
         private static IAnimation animation;
 
@@ -24,6 +28,11 @@ namespace MSI_LED_Tool
             // Load user settings
             string settingsFile = $"{AppDomain.CurrentDomain.BaseDirectory}\\{SettingsFileName}";
             ledSettings = InitializeFromSettings(settingsFile);
+
+            // Initialize settings
+            ledSettingsBack = LedSettings.CopyFrom(ledSettings);
+            ledSettingsFront = LedSettings.CopyFrom(ledSettings);
+            ledSettingsSide = LedSettings.CopyFrom(ledSettings);
 
             // Build graphics card adapter based on cards detected
             var didCreateGraphicsAdapter = ConstructGraphicsAdapter(ledSettings);
@@ -123,7 +132,7 @@ namespace MSI_LED_Tool
         {
             while (true)
             {
-                animation.AnimateFront(graphicsAdapter, ledSettings);
+                animation.AnimateFront(graphicsAdapter, ledSettingsFront);
             }
         }
 
@@ -132,7 +141,7 @@ namespace MSI_LED_Tool
         {
             while (true)
             {
-                animation.AnimateSide(graphicsAdapter, ledSettings);
+                animation.AnimateSide(graphicsAdapter, ledSettingsBack);
             }
         }
 
@@ -140,7 +149,7 @@ namespace MSI_LED_Tool
         {
             while (true)
             {
-                animation.AnimateBack(graphicsAdapter, ledSettings);
+                animation.AnimateBack(graphicsAdapter, ledSettingsSide);
             }
         }
 

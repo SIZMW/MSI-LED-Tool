@@ -4,6 +4,13 @@ namespace MSI_LED_Tool
 {
     public abstract class AdapterBase : IAdapter
     {
+        protected GenericGraphicsInfo graphicsInfo;
+
+        public AdapterBase()
+        {
+            graphicsInfo = new GenericGraphicsInfo();
+        }
+
         public Manufacturer Manufacturer { get; protected set; }
 
         public IList<int> AdapterIndices { get; protected set; }
